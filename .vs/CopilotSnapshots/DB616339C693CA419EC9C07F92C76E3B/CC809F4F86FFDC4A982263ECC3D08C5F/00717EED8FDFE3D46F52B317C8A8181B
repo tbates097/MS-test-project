@@ -1,0 +1,109 @@
+﻿"""
+Minimal test script to demonstrate Aerotech DLL loading and usage.
+This script attempts to load and use the minimum required Aerotech functionality.
+"""
+from pythonnet import load
+load("coreclr")
+import os
+import sys
+
+# Import System for Type.GetType
+import System
+from System.Collections.Generic import List
+from System import String
+
+import clr
+
+def main():
+    print("Python version:", sys.version)
+    print("Platform:", sys.platform)
+    print("\nAttempting to load Aerotech assemblies...")
+
+    # Add Aerotech DLL directory to PATH
+    AEROTECH_DLL_PATH = os.path.join(os.path.dirname(__file__), "extern", "Automation1")
+    if not os.path.exists(AEROTECH_DLL_PATH):
+        print(f"ERROR: Aerotech DLL path not found: {AEROTECH_DLL_PATH}")
+        return
+    
+    # Add ConfigurationManager path
+    CONFIG_MANAGER_PATH = os.path.join(os.path.dirname(__file__), "System.Configuration.ConfigurationManager.8.0.0", "lib", "netstandard2.0")
+    if not os.path.exists(CONFIG_MANAGER_PATH):
+        print(f"ERROR: ConfigurationManager not found at {CONFIG_MANAGER_PATH}")
+        return
+    
+    os.environ["PATH"] = AEROTECH_DLL_PATH + ";" + os.environ["PATH"]
+    os.add_dll_directory(AEROTECH_DLL_PATH)
+    
+    try:
+        # Load ConfigurationManager first
+        print("\nLoading ConfigurationManager...")
+        clr.AddReference(os.path.join(CONFIG_MANAGER_PATH, "System.Configuration.ConfigurationManager.dll"))
+        
+        # Then load the Aerotech DLLs
+        print("Loading Aerotech assemblies...")
+        clr.AddReference(os.path.join(AEROTECH_DLL_PATH, "Aerotech.Automation1.Applications.Core.dll"))
+        print("Aerotech.Core loaded successfully")
+        clr.AddReference(os.path.join(AEROTECH_DLL_PATH, "Aerotech.Automation1.Applications.Interfaces.dll"))
+        print("Aerotech.Interfaces loaded successfully")
+        clr.AddReference(os.path.join(AEROTECH_DLL_PATH, "Aerotech.Automation1.Applications.Shared.dll"))
+        print("Aerotech.Shared loaded successfully")
+        clr.AddReference(os.path.join(AEROTECH_DLL_PATH, "Aerotech.Automation1.DotNetInternal.dll"))
+        print("Aerotech.DotNetInternal loaded successfully")
+        clr.AddReference(os.path.join(AEROTECH_DLL_PATH, "Aerotech.Automation1.Applications.Wpf.dll"))
+        print("Aerotech.Wpf loaded successfully")
+        
+        # Get the types using assembly-qualified names
+        type_name1 = "Aerotech.Automation1.Applications.Wpf.McdFormatConverter, Aerotech.Automation1.Applications.Wpf"
+        type_name2 = "Aerotech.Automation1.DotNetInternal.MachineControllerDefinition, Aerotech.Automation1.DotNetInternal"
+        McdFormatConverter = System.Type.GetType(type_name1)
+        MachineControllerDefinition = System.Type.GetType(type_name2)
+        
+        if McdFormatConverter is None or MachineControllerDefinition is None:
+            print("\nFATAL: One or both types could not be found. They may not be public, or the namespace may be different.")
+            return
+        
+        print("Successfully loaded required types")
+        
+        # Try to read an MCD file
+        mcd_path = os.path.join(os.path.dirname(__file__), "PRO165.mcd")
+        print(f"\nAttempting to read MCD file: {mcd_path}")
+        read_from_file = MachineControllerDefinition.GetMethod("ReadFromFile")
+        mcd = read_from_file.Invoke(None, [mcd_path])
+        print(f'MCD File: {mcd}')
+        print("Successfully read MCD file")
+        
+        warnings = List[String]()
+
+        # Extract json from MCD
+        print("\nExtracting JSON from MCD...")
+        extract_json = McdFormatConverter.GetMethod("ConvertToJson")
+        json = extract_json.Invoke(None, [mcd, warnings])
+        print("JSON extraction complete!")
+        # Save JSON to file
+        json_path = os.path.join(os.path.dirname(__file__), "PRO165.json")
+
+        # Create a warnings list
+        
+        # Calculate parameters
+        print("\nCalculating parameters...")
+        calculate_parameters = McdFormatConverter.GetMethod("CalculateParameters")
+        calculated_mcd = calculate_parameters.Invoke(None, [mcd, warnings])
+        
+        print("\nCalculation complete!")
+        if warnings.Count > 0:
+            print("\nWarnings during calculation:")
+            for warning in warnings:
+                print(f"- {warning}")
+        else:
+            print("No warnings generated during calculation")
+        
+    except Exception as e:
+        print("\nERROR: An exception occurred:")
+        print(str(e))
+        print("\nException type:", type(e).__name__)
+        if hasattr(e, 'InnerException') and e.InnerException:
+            print("\nInner Exception:")
+            print(str(e.InnerException))
+
+if __name__ == "__main__":
+    main() 
